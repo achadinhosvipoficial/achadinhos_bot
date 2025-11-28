@@ -35,20 +35,18 @@ bot = Bot(token=TOKEN)
 def carregar_links():
     try:
         with open(ARQUIVO_LINKS, "r", encoding="utf-8") as f:
-            return [linha.strip() for linha in f if linha.strip()]
+            links = [linha.strip() for linha in f if linha.strip()]
+            logging.info(f"Links carregados: {len(links)}")
+            return links
     except FileNotFoundError:
         logging.error(f"❌ Arquivo {ARQUIVO_LINKS} não encontrado!")
         return []
 
 # ===============================
-# ENVIO ALEATÓRIO SEM REPETIÇÃO
+# ENVIO ALEATÓRIO DE LINKS
 # ===============================
-enviados = set()
-
 def enviar_links_aleatorios():
-    global enviados
     logging.info("🚀 Envio ALEATÓRIO iniciado.")
-
     while True:
         links = carregar_links()
         if not links:
@@ -56,23 +54,12 @@ def enviar_links_aleatorios():
             time.sleep(10)
             continue
 
-        # Atualiza lista de enviados removendo links que foram apagados
-        enviados = {link for link in enviados if link in links}
-
-        # Filtra links ainda não enviados
-        nao_enviados = [link for link in links if link not in enviados]
-
-        if not nao_enviados:
-            # Resetar quando todos foram enviados
-            enviados.clear()
-            nao_enviados = links.copy()
-
-        link = random.choice(nao_enviados)
         try:
+            link = random.choice(links)
             mensagem = f"🔥 Achado do momento!\nConfira aqui: {link}"
             bot.send_message(chat_id=CHAT_ID, text=mensagem)
             logging.info(f"Enviado -> {mensagem}")
-            enviados.add(link)
+
         except Exception as e:
             logging.error(f"Erro ao enviar link: {e}")
 
