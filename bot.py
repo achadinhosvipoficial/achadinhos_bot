@@ -1,107 +1,87 @@
 import os
 import threading
 import time
+import random
 import logging
-import asyncio
 from flask import Flask
 from telegram import Bot
-from telegram.error import TelegramError
 
-# ===========================
+# ===============================
 # LOG
-# ===========================
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s — %(levelname)s — %(message)s"
-)
+# ===============================
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
-# ===========================
+# ===============================
 # VARIÁVEIS DO RENDER
-# ===========================
+# ===============================
 TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-INTERVALO = 180
-PORT = int(os.getenv("PORT", 10000))
 
-if not TOKEN:
-    logging.error("❌ BOT_TOKEN não foi definido!")
-if not CHAT_ID:
-    logging.error("❌ CHAT_ID não foi definido!")
+if not TOKEN or not CHAT_ID:
+    raise Exception("❌ BOT_TOKEN ou CHAT_ID faltando no Render!")
 
-bot = Bot(token=TOKEN)
-loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
+# Intervalo (1 minuto)
+INTERVALO = 60  
 
-# ===========================
-# FLASK
-# ===========================
+# ===============================
+# FLASK + TELEGRAM
+# ===============================
 app = Flask(__name__)
+bot = Bot(token=TOKEN)
 
-@app.route("/")
-def home():
-    return "Bot Shopee rodando 24h no Render! 🚀"
-
-@app.route("/test")
-def test():
-    try:
-        loop.run_until_complete(
-            bot.send_message(chat_id=CHAT_ID, text="Bot funcionando! 🚀")
-        )
-        return "Mensagem enviada!"
-    except Exception as e:
-        return f"Erro: {e}"
-
-# ===========================
-# LINKS
-# ===========================
+# ===============================
+# CARREGAR LINKS
+# ===============================
 def carregar_links():
-    if not os.path.exists("links.txt"):
-        logging.error("❌ links.txt não existe!")
+    try:
+        with open("links.txt", "r", encoding="utf-8") as f:
+            return [linha.strip() for linha in f if linha.strip()]
+    except FileNotFoundError:
+        logging.error("❌ Arquivo links.txt não encontrado!")
         return []
 
-    with open("links.txt", "r", encoding="utf-8") as f:
-        return [linha.strip() for linha in f if linha.strip()]
-
-LINKS = carregar_links()
-
-# ===========================
-# THREAD DE ENVIO
-# ===========================
+# ===============================
+# ENVIO ALEATÓRIO COM TEXTO
+# ===============================
 def enviar_links():
-    if not LINKS:
-        logging.error("❌ Nenhum link encontrado.")
+    links = carregar_links()
+
+    if not links:
+        logging.error("❌ links.txt está vazio!")
         return
 
-    idx = 0
+    logging.info("🚀 Envio ALEATÓRIO a cada 1 minuto iniciado.")
 
     while True:
         try:
-            link = LINKS[idx]
-            logging.info(f"➡️ Enviando: {link}")
+            link = random.choice(links)
 
-            loop.run_until_complete(
-                bot.send_message(chat_id=CHAT_ID, text=link)
-            )
+            mensagem = f"🔥 Achado do momento!\nConfira aqui: {link}"
 
-            idx = (idx + 1) % len(LINKS)
+            bot.send_message(chat_id=CHAT_ID, text=mensagem)
+
+            logging.info(f"Enviado -> {mensagem}")
+
             time.sleep(INTERVALO)
 
-        except TelegramError as e:
-            logging.error(f"⚠️ Erro Telegram: {e}")
-            time.sleep(10)
-
         except Exception as e:
-            logging.error(f"❌ Erro inesperado: {e}")
+            logging.error(f"Erro ao enviar: {e}")
             time.sleep(10)
 
-# ===========================
-# INICIAR THREAD
-# ===========================
+# ===============================
+# THREAD PARA NÃO TRAVAR RENDER
+# ===============================
 threading.Thread(target=enviar_links, daemon=True).start()
-print("Thread iniciada! Bot está ativo.")
 
-# ===========================
+# ===============================
+# ROTA PRINCIPAL
+# ===============================
+@app.route("/")
+def home():
+    return "Bot Shopee rodando com mensagem personalizada + link aleatório!"
+
+# ===============================
 # INICIAR SERVIDOR
-# ===========================
+# ===============================
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=PORT)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
