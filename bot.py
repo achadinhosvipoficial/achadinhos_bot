@@ -6,7 +6,7 @@ from telegram import Bot
 # CONFIGURAÇÕES
 TOKEN = "SEU_TOKEN_AQUI"
 CHAT_ID = "SEU_CHAT_ID_AQUI"
-INTERVALO = 60  # tempo em segundos entre envios
+INTERVALO = 60  # intervalo entre envios em segundos
 ARQUIVO_ENVIADOS = "links_enviados.txt"
 
 # LISTA DE LINKS
@@ -20,33 +20,36 @@ links = [
 # Inicializa bot
 bot = Bot(token=TOKEN)
 
-# Função para ler links enviados
+# Ler links já enviados
 def ler_enviados():
     if not os.path.exists(ARQUIVO_ENVIADOS):
         return set()
     with open(ARQUIVO_ENVIADOS, "r") as f:
         return set(line.strip() for line in f if line.strip())
 
-# Função para salvar link enviado
+# Salvar link enviado
 def salvar_enviado(link):
     with open(ARQUIVO_ENVIADOS, "a") as f:
         f.write(link + "\n")
 
-# Função principal de envio
+# Loop principal de envio
 def enviar_links():
     while True:
         enviados = ler_enviados()
-        # se todos os links foram enviados, reseta
+        
+        # Reinicia ciclo se todos os links foram enviados
         if len(enviados) >= len(links):
-            print("✅ Todos os links enviados. Reiniciando...")
+            print("✅ Todos os links enviados. Reiniciando ciclo...")
             os.remove(ARQUIVO_ENVIADOS)
             enviados = set()
         
-        # escolhe um link que ainda não foi enviado
+        # Filtra links que ainda não foram enviados
         disponiveis = [link for link in links if link not in enviados]
         if not disponiveis:
-            continue  # deve reiniciar no próximo loop
+            time.sleep(5)
+            continue
         
+        # Escolhe um link aleatório entre os disponíveis
         link = random.choice(disponiveis)
         mensagem = f"🔥 Achado do momento!\nConfira aqui: {link}"
         try:
