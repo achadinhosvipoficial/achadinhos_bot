@@ -5,7 +5,6 @@ import random
 import logging
 from flask import Flask
 from telegram import Bot
-from telegram.error import TelegramError  # Import correto para v20+
 
 # ===============================
 # LOG
@@ -36,59 +35,53 @@ bot = Bot(token=TOKEN)
 def carregar_links():
     try:
         with open(ARQUIVO_LINKS, "r", encoding="utf-8") as f:
-            links = [linha.strip() for linha in f if linha.strip()]
-            logging.info(f"Links carregados: {len(links)}")
-            return links
+            return [linha.strip() for linha in f if linha.strip()]
     except FileNotFoundError:
         logging.error(f"❌ Arquivo {ARQUIVO_LINKS} não encontrado!")
         return []
 
 # ===============================
-# TESTE DE ENVIO
+# ENVIO ALEATÓRIO SEM REPETIÇÃO
 # ===============================
-def teste_envio():
-    try:
-        bot.send_message(chat_id=CHAT_ID, text="✅ Bot iniciado com sucesso!")
-        logging.info("Teste de envio realizado com sucesso.")
-    except TelegramError as e:
-        logging.error(f"Erro no envio de teste: {e}")
+enviados = set()
 
-# ===============================
-# ENVIO ALEATÓRIO DE LINKS
-# ===============================
 def enviar_links_aleatorios():
+    global enviados
     logging.info("🚀 Envio ALEATÓRIO iniciado.")
-    while True:
-        try:
-            links = carregar_links()
-            if not links:
-                logging.warning("❌ links.txt vazio, esperando 10s...")
-                time.sleep(10)
-                continue
 
-            link = random.choice(links)
+    while True:
+        links = carregar_links()
+        if not links:
+            logging.warning("❌ links.txt vazio, esperando 10s...")
+            time.sleep(10)
+            continue
+
+        # Atualiza lista de enviados removendo links que foram apagados
+        enviados = {link for link in enviados if link in links}
+
+        # Filtra links ainda não enviados
+        nao_enviados = [link for link in links if link not in enviados]
+
+        if not nao_enviados:
+            # Resetar quando todos foram enviados
+            enviados.clear()
+            nao_enviados = links.copy()
+
+        link = random.choice(nao_enviados)
+        try:
             mensagem = f"🔥 Achado do momento!\nConfira aqui: {link}"
             bot.send_message(chat_id=CHAT_ID, text=mensagem)
             logging.info(f"Enviado -> {mensagem}")
-
-            time.sleep(INTERVALO)
-
-        except TelegramError as e:
-            logging.error(f"Erro no envio aleatório: {e}")
-            time.sleep(10)
+            enviados.add(link)
         except Exception as e:
-            logging.error(f"Erro inesperado: {e}")
-            time.sleep(10)
+            logging.error(f"Erro ao enviar link: {e}")
+
+        time.sleep(INTERVALO)
 
 # ===============================
 # INICIAR THREAD
 # ===============================
 threading.Thread(target=enviar_links_aleatorios, daemon=True).start()
-
-# ===============================
-# TESTE DE ENVIO INICIAL
-# ===============================
-teste_envio()
 
 # ===============================
 # ROTA PRINCIPAL FLASK
