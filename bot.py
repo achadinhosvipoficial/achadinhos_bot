@@ -35,9 +35,7 @@ bot = Bot(token=TOKEN)
 def carregar_links():
     try:
         with open(ARQUIVO_LINKS, "r", encoding="utf-8") as f:
-            links = [linha.strip() for linha in f if linha.strip()]
-            logging.info(f"Links carregados: {len(links)}")
-            return links
+            return [linha.strip() for linha in f if linha.strip()]
     except FileNotFoundError:
         logging.error(f"❌ Arquivo {ARQUIVO_LINKS} não encontrado!")
         return []
@@ -45,8 +43,8 @@ def carregar_links():
 # ===============================
 # ENVIO ALEATÓRIO DE LINKS
 # ===============================
-def enviar_links_aleatorios():
-    logging.info("🚀 Envio ALEATÓRIO iniciado.")
+def enviar_links():
+    logging.info("🚀 Envio ALEATÓRIO a cada 1 minuto iniciado.")
     while True:
         links = carregar_links()
         if not links:
@@ -54,24 +52,23 @@ def enviar_links_aleatorios():
             time.sleep(10)
             continue
 
+        link = random.choice(links)
+        mensagem = f"🔥 Achado do momento!\nConfira aqui: {link}"
         try:
-            link = random.choice(links)
-            mensagem = f"🔥 Achado do momento!\nConfira aqui: {link}"
             bot.send_message(chat_id=CHAT_ID, text=mensagem)
             logging.info(f"Enviado -> {mensagem}")
-
         except Exception as e:
             logging.error(f"Erro ao enviar link: {e}")
 
         time.sleep(INTERVALO)
 
 # ===============================
-# INICIAR THREAD
+# THREAD PARA NÃO BLOQUEAR O FLASK
 # ===============================
-threading.Thread(target=enviar_links_aleatorios, daemon=True).start()
+threading.Thread(target=enviar_links, daemon=True).start()
 
 # ===============================
-# ROTA PRINCIPAL FLASK
+# ROTA PRINCIPAL
 # ===============================
 @app.route("/")
 def home():
