@@ -20,7 +20,8 @@ CHAT_ID = os.getenv("CHAT_ID")
 if not TOKEN or not CHAT_ID:
     raise Exception("❌ BOT_TOKEN ou CHAT_ID faltando no Render!")
 
-INTERVALO = 60  # Intervalo entre envios em segundos
+# Intervalo em segundos (1 minuto)
+INTERVALO = 60  
 
 # ===============================
 # FLASK + TELEGRAM
@@ -29,70 +30,76 @@ app = Flask(__name__)
 bot = Bot(token=TOKEN)
 
 # ===============================
-# ARQUIVOS
-# ===============================
-LINKS_FILE = "links.txt"
-ENVIADOS_FILE = "enviados.txt"
-
-# ===============================
-# FUNÇÕES DE CARREGAMENTO
+# CARREGAR LINKS
 # ===============================
 def carregar_links():
     try:
-        with open(LINKS_FILE, "r", encoding="utf-8") as f:
+        with open("links.txt", "r", encoding="utf-8") as f:
             return [linha.strip() for linha in f if linha.strip()]
     except FileNotFoundError:
         logging.error("❌ Arquivo links.txt não encontrado!")
         return []
 
+# ===============================
+# CARREGAR LINKS ENVIADOS
+# ===============================
 def carregar_enviados():
-    if not os.path.exists(ENVIADOS_FILE):
-        return set()
-    with open(ENVIADOS_FILE, "r", encoding="utf-8") as f:
-        return set(linha.strip() for linha in f)
+    if not os.path.exists("enviados.txt"):
+        open("enviados.txt", "w").close()
+    with open("enviados.txt", "r", encoding="utf-8") as f:
+        return set(linha.strip() for linha in f if linha.strip())
 
+# ===============================
+# SALVAR LINK ENVIADO
+# ===============================
 def salvar_enviado(link):
-    with open(ENVIADOS_FILE, "a", encoding="utf-8") as f:
+    with open("enviados.txt", "a", encoding="utf-8") as f:
         f.write(link + "\n")
 
 # ===============================
-# FUNÇÃO DE ENVIO ALEATÓRIO
+# ENVIO ALEATÓRIO COM TEXTO
 # ===============================
 def enviar_links():
-    logging.info("🚀 Bot iniciado, enviando links aleatórios a cada 1 minuto...")
+    logging.info("🚀 Envio ALEATÓRIO iniciado.")
+    
     while True:
+        links = carregar_links()
+        enviados = carregar_enviados()
+        
+        # Filtra os links que ainda não foram enviados
+        nao_enviados = [l for l in links if l not in enviados]
+
+        if not nao_enviados:
+            logging.info("🔄 Todos os links foram enviados, reiniciando ciclo...")
+            # Limpa enviados.txt para recomeçar o ciclo
+            open("enviados.txt", "w").close()
+            time.sleep(5)
+            continue
+
+        # Escolhe um link aleatório não enviado
+        link = random.choice(nao_enviados)
+        mensagem = f"🔥 Achado do momento!\nConfira aqui: {link}"
+        
         try:
-            links = carregar_links()
-            enviados = carregar_enviados()
-            disponiveis = [l for l in links if l not in enviados]
-
-            if not disponiveis:
-                logging.info("⚠️ Nenhum link novo disponível no momento. Aguardando...")
-                time.sleep(INTERVALO)
-                continue
-
-            link = random.choice(disponiveis)
-            mensagem = f"🔥 Achado do momento!\nConfira aqui: {link}"
             bot.send_message(chat_id=CHAT_ID, text=mensagem)
-            salvar_enviado(link)
             logging.info(f"Enviado -> {mensagem}")
-            time.sleep(INTERVALO)
-
+            salvar_enviado(link)
         except Exception as e:
-            logging.error(f"❌ Erro ao enviar link: {e}")
-            time.sleep(10)
+            logging.error(f"Erro ao enviar: {e}")
+        
+        time.sleep(INTERVALO)
 
 # ===============================
-# ROTA FLASK
+# THREAD PARA NÃO TRAVAR RENDER
+# ===============================
+threading.Thread(target=enviar_links, daemon=True).start()
+
+# ===============================
+# ROTA PRINCIPAL
 # ===============================
 @app.route("/")
 def home():
-    return "Bot de Achadinhos rodando! 🚀"
-
-# ===============================
-# THREAD PARA ENVIO
-# ===============================
-threading.Thread(target=enviar_links, daemon=True).start()
+    return "Bot Achadinhos rodando com mensagem personalizada + link aleatório!"
 
 # ===============================
 # INICIAR SERVIDOR
