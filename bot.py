@@ -4,7 +4,8 @@ import time
 import random
 import logging
 from flask import Flask
-from telegram import Bot, TelegramError
+from telegram import Bot
+from telegram.error import TelegramError  # Import correto para v20+
 
 # ===============================
 # LOG
@@ -80,36 +81,9 @@ def enviar_links_aleatorios():
             time.sleep(10)
 
 # ===============================
-# ENVIO IMEDIATO DE LINKS NOVOS
-# ===============================
-def monitorar_links_novos():
-    ultimo_tamanho = 0
-    logging.info("🚀 Monitoramento de links novos iniciado.")
-    while True:
-        try:
-            if os.path.exists(ARQUIVO_LINKS):
-                tamanho_atual = os.path.getsize(ARQUIVO_LINKS)
-                if tamanho_atual != ultimo_tamanho:
-                    links = carregar_links()
-                    if links:
-                        novo_link = links[-1]
-                        mensagem = f"🔥 Novo achado!\nConfira aqui: {novo_link}"
-                        bot.send_message(chat_id=CHAT_ID, text=mensagem)
-                        logging.info(f"Enviado -> {mensagem}")
-                    ultimo_tamanho = tamanho_atual
-            time.sleep(5)
-        except TelegramError as e:
-            logging.error(f"Erro no envio de link novo: {e}")
-            time.sleep(10)
-        except Exception as e:
-            logging.error(f"Erro inesperado: {e}")
-            time.sleep(10)
-
-# ===============================
-# INICIAR THREADS
+# INICIAR THREAD
 # ===============================
 threading.Thread(target=enviar_links_aleatorios, daemon=True).start()
-threading.Thread(target=monitorar_links_novos, daemon=True).start()
 
 # ===============================
 # TESTE DE ENVIO INICIAL
@@ -121,7 +95,7 @@ teste_envio()
 # ===============================
 @app.route("/")
 def home():
-    return "Bot de Achadinhos rodando! Links aleatórios e novos sendo enviados."
+    return "Bot de Achadinhos rodando! Links aleatórios sendo enviados."
 
 # ===============================
 # INICIAR SERVIDOR
