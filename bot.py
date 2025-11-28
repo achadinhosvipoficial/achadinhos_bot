@@ -4,8 +4,10 @@ import time
 from flask import Flask
 from telegram import Bot
 
-TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")  # ID do grupo
+# VARIÁVEIS DE AMBIENTE DO RENDER (CORRETAS)
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
 INTERVALO = 180  # 3 minutos
 
 app = Flask(__name__)
@@ -31,7 +33,7 @@ def enviar_links():
             print("Erro ao enviar link:", e)
             time.sleep(10)
 
-# Thread em paralelo para enviar os links sem travar o Render
+# Thread paralela (necessário para rodar 24h no Render)
 threading.Thread(target=enviar_links, daemon=True).start()
 
 @app.route("/")
@@ -39,4 +41,5 @@ def home():
     return "Bot Shopee rodando 24h no Render!"
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+    port = int(os.getenv("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
