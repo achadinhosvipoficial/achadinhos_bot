@@ -1,44 +1,107 @@
 import os
 import threading
 import time
+import logging
+import asyncio
 from flask import Flask
 from telegram import Bot
+from telegram.error import TelegramError
 
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")  # ID do grupo
-INTERVALO = 180  # 3 minutos
+# ===========================
+# LOG
+# ===========================
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s — %(levelname)s — %(message)s"
+)
 
-app = Flask(__name__)
+# ===========================
+# VARIÁVEIS DO RENDER
+# ===========================
+TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
+INTERVALO = 180
+PORT = int(os.getenv("PORT", 10000))
+
+if not TOKEN:
+    logging.error("❌ BOT_TOKEN não foi definido!")
+if not CHAT_ID:
+    logging.error("❌ CHAT_ID não foi definido!")
+
 bot = Bot(token=TOKEN)
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
 
+# ===========================
+# FLASK
+# ===========================
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Bot Shopee rodando 24h no Render! 🚀"
+
+@app.route("/test")
+def test():
+    try:
+        loop.run_until_complete(
+            bot.send_message(chat_id=CHAT_ID, text="Bot funcionando! 🚀")
+        )
+        return "Mensagem enviada!"
+    except Exception as e:
+        return f"Erro: {e}"
+
+# ===========================
+# LINKS
+# ===========================
 def carregar_links():
+    if not os.path.exists("links.txt"):
+        logging.error("❌ links.txt não existe!")
+        return []
+
     with open("links.txt", "r", encoding="utf-8") as f:
         return [linha.strip() for linha in f if linha.strip()]
 
+LINKS = carregar_links()
+
+# ===========================
+# THREAD DE ENVIO
+# ===========================
 def enviar_links():
-    print("Thread iniciada! Bot está ativo.")
-    links = carregar_links()
+    if not LINKS:
+        logging.error("❌ Nenhum link encontrado.")
+        return
+
     idx = 0
 
     while True:
         try:
-            link = links[idx]
-            print("Enviando:", link)
-            bot.send_message(chat_id=CHAT_ID, text=link)
+            link = LINKS[idx]
+            logging.info(f"➡️ Enviando: {link}")
 
-            idx = (idx + 1) % len(links)
+            loop.run_until_complete(
+                bot.send_message(chat_id=CHAT_ID, text=link)
+            )
+
+            idx = (idx + 1) % len(LINKS)
             time.sleep(INTERVALO)
 
-        except Exception as e:
-            print("Erro ao enviar link:", e)
+        except TelegramError as e:
+            logging.error(f"⚠️ Erro Telegram: {e}")
             time.sleep(10)
 
-# Thread da automação
+        except Exception as e:
+            logging.error(f"❌ Erro inesperado: {e}")
+            time.sleep(10)
+
+# ===========================
+# INICIAR THREAD
+# ===========================
 threading.Thread(target=enviar_links, daemon=True).start()
+print("Thread iniciada! Bot está ativo.")
 
-@app.route("/")
-def home():
-    return "Bot Shopee rodando 24h no Render!"
-
+# ===========================
+# INICIAR SERVIDOR
+# ===========================
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+    app.run(host="0.0.0.0", port=PORT)
