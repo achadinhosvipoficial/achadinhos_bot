@@ -1,5 +1,6 @@
 import os
-import asyncio
+import threading
+import time
 import random
 import logging
 from flask import Flask
@@ -19,8 +20,7 @@ CHAT_ID = os.getenv("CHAT_ID")
 if not TOKEN or not CHAT_ID:
     raise Exception("❌ BOT_TOKEN ou CHAT_ID faltando no Render!")
 
-# Intervalo entre envios (em segundos)
-INTERVALO = 60  
+INTERVALO = 60  # Intervalo entre envios em segundos
 
 # ===============================
 # FLASK + TELEGRAM
@@ -29,89 +29,73 @@ app = Flask(__name__)
 bot = Bot(token=TOKEN)
 
 # ===============================
-# FUNÇÃO PARA CARREGAR LINKS
+# ARQUIVOS
+# ===============================
+LINKS_FILE = "links.txt"
+ENVIADOS_FILE = "enviados.txt"
+
+# ===============================
+# FUNÇÕES DE CARREGAMENTO
 # ===============================
 def carregar_links():
-    """Lê links do arquivo links.txt sempre que chamado."""
     try:
-        with open("links.txt", "r", encoding="utf-8") as f:
-            links = [linha.strip() for linha in f if linha.strip()]
-            if not links:
-                logging.warning("⚠️ links.txt está vazio!")
-            return links
+        with open(LINKS_FILE, "r", encoding="utf-8") as f:
+            return [linha.strip() for linha in f if linha.strip()]
     except FileNotFoundError:
         logging.error("❌ Arquivo links.txt não encontrado!")
         return []
 
-# ===============================
-# GERENCIAMENTO DE LINKS COM LOG
-# ===============================
-class LinkManager:
-    def __init__(self):
-        self.links_disponiveis = []
-        self.links_enviados = set()
+def carregar_enviados():
+    if not os.path.exists(ENVIADOS_FILE):
+        return set()
+    with open(ENVIADOS_FILE, "r", encoding="utf-8") as f:
+        return set(linha.strip() for linha in f)
 
-    def obter_link(self):
-        todos_links = carregar_links()
-        if not todos_links:
-            return None
-
-        # Atualiza a lista de disponíveis removendo já enviados
-        self.links_disponiveis = [l for l in todos_links if l not in self.links_enviados]
-
-        # Se todos os links foram enviados, reinicia o ciclo
-        if not self.links_disponiveis:
-            logging.info("♻️ Todos os links foram enviados. Reiniciando ciclo...")
-            self.links_enviados.clear()
-            self.links_disponiveis = todos_links.copy()
-
-        link = random.choice(self.links_disponiveis)
-        self.links_enviados.add(link)
-
-        logging.info(f"📌 Links enviados neste ciclo: {len(self.links_enviados)}/{len(todos_links)}")
-        return link
-
-link_manager = LinkManager()
+def salvar_enviado(link):
+    with open(ENVIADOS_FILE, "a", encoding="utf-8") as f:
+        f.write(link + "\n")
 
 # ===============================
-# ENVIO ASSÍNCRONO DE LINKS
+# FUNÇÃO DE ENVIO ALEATÓRIO
 # ===============================
-async def enviar_links():
-    logging.info("🚀 Envio ALEATÓRIO a cada 1 minuto iniciado.")
-
+def enviar_links():
+    logging.info("🚀 Bot iniciado, enviando links aleatórios a cada 1 minuto...")
     while True:
         try:
-            link = link_manager.obter_link()
-            if not link:
-                await asyncio.sleep(INTERVALO)
+            links = carregar_links()
+            enviados = carregar_enviados()
+            disponiveis = [l for l in links if l not in enviados]
+
+            if not disponiveis:
+                logging.info("⚠️ Nenhum link novo disponível no momento. Aguardando...")
+                time.sleep(INTERVALO)
                 continue
 
+            link = random.choice(disponiveis)
             mensagem = f"🔥 Achado do momento!\nConfira aqui: {link}"
-
-            await bot.send_message(chat_id=CHAT_ID, text=mensagem)
+            bot.send_message(chat_id=CHAT_ID, text=mensagem)
+            salvar_enviado(link)
             logging.info(f"Enviado -> {mensagem}")
-
-            await asyncio.sleep(INTERVALO)
+            time.sleep(INTERVALO)
 
         except Exception as e:
-            logging.error(f"Erro ao enviar: {e}")
-            await asyncio.sleep(10)
+            logging.error(f"❌ Erro ao enviar link: {e}")
+            time.sleep(10)
 
 # ===============================
-# ROTA PRINCIPAL
+# ROTA FLASK
 # ===============================
 @app.route("/")
 def home():
-    return "Bot Shopee rodando com mensagem personalizada + link aleatório!"
+    return "Bot de Achadinhos rodando! 🚀"
 
 # ===============================
-# INICIAR FLASK + ENVIO ASSÍNCRONO
+# THREAD PARA ENVIO
+# ===============================
+threading.Thread(target=enviar_links, daemon=True).start()
+
+# ===============================
+# INICIAR SERVIDOR
 # ===============================
 if __name__ == "__main__":
-    from threading import Thread
-
-    def run_flask():
-        app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
-
-    Thread(target=run_flask, daemon=True).start()
-    asyncio.run(enviar_links())
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
